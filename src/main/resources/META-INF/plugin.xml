@@ -1,0 +1,35 @@
+<idea-plugin>
+    <id>org.bogsnebes.engines.countstrings</id>
+    <name>CountStrings</name>
+    <vendor>bogsnebes</vendor>
+
+    <description>
+        <![CDATA[
+        Tracks changed lines in the current Git branch and displays a green/yellow/red indicator in the status bar.
+        ]]>
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <statusBarWidgetFactory
+                id="GitChangedLinesStatusWidget"
+                implementation="org.bogsnebes.engines.countstrings.statusbar.ChangedLinesStatusBarWidgetFactory"/>
+        <postStartupActivity implementation="org.bogsnebes.engines.countstrings.lifecycle.ChangedLinesStartupActivity"/>
+        <checkinHandlerFactory implementation="org.bogsnebes.engines.countstrings.vcs.ChangedLinesCheckinHandlerFactory"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener
+                class="org.bogsnebes.engines.countstrings.vcs.ChangedLinesVfsRefreshListener"
+                topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+    </applicationListeners>
+
+    <projectListeners>
+        <listener
+                class="org.bogsnebes.engines.countstrings.vcs.ChangedLinesGitRepositoryListener"
+                topic="git4idea.repo.GitRepositoryChangeListener"/>
+    </projectListeners>
+</idea-plugin>
