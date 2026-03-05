@@ -1,0 +1,86 @@
+name: Release on main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Bump patch version
+        id: bump_version
+        shell: bash
+        run: |
+          current_version="$(grep '^pluginVersion=' gradle.properties | cut -d'=' -f2)"
+          IFS='.' read -r major minor patch <<< "$current_version"
+          next_patch=$((patch + 1))
+          next_version="${major}.${minor}.${next_patch}"
+
+          sed -i "s/^pluginVersion=.*/pluginVersion=${next_version}/" gradle.properties
+
+          echo "current_version=${current_version}" >> "$GITHUB_OUTPUT"
+          echo "next_version=${next_version}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v${next_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        env:
+          NEXT_VERSION: ${{ steps.bump_version.outputs.next_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties
+          git commit -m "chore: release v${NEXT_VERSION} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Build plugin archive
+        run: ./gradlew buildPlugin
+
+      - name: Resolve distribution zip
+        id: artifact
+        shell: bash
+        run: |
+          zip_path="$(find build/distributions -maxdepth 1 -type f -name '*.zip' | head -n 1)"
+          if [[ -z "$zip_path" ]]; then
+            echo "No plugin zip found in build/distributions" >&2
+            exit 1
+          fi
+
+          echo "zip_path=${zip_path}" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$(basename "$zip_path")" >> "$GITHUB_OUTPUT"
+
+      - name: Create Git tag
+        env:
+          RELEASE_TAG: ${{ steps.bump_version.outputs.release_tag }}
+        run: |
+          git tag "${RELEASE_TAG}"
+          git push origin "${RELEASE_TAG}"
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.bump_version.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.bump_version.outputs.next_version }}
+          ZIP_PATH: ${{ steps.artifact.outputs.zip_path }}
+        run: |
+          gh release create "${RELEASE_TAG}" "${ZIP_PATH}" \
+            --title "${RELEASE_TAG}" \
+            --notes "Automated release for version ${RELEASE_VERSION}."

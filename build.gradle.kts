@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "org.bogsnebes.engines"
-version = "1.0.0"
+version = providers.gradleProperty("pluginVersion").get()
 
 repositories {
     mavenCentral()
